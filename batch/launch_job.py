@@ -77,7 +77,7 @@ def launch_batch(config_file, num_jobs, sims_per_job, dvc_target, s3_input_bucke
             {"name": "DVC_TARGET", "value": dvc_target},
             {"name": "DVC_OUTPUTS", "value": " ".join(dvc_outputs)},
             {"name": "S3_RESULTS_PATH", "value": results_path},
-            {"name": "SIMS_PER_JOB", "value": sims_per_job}
+            {"name": "SIMS_PER_JOB", "value": str(sims_per_job)}
     ]
     s3_cp_run_script = f"aws s3 cp s3://{s3_input_bucket}/{runner_script_name} $PWD/run-covid-pipeline"
     command = ["sh", "-c", f"{s3_cp_run_script}; /bin/bash $PWD/run-covid-pipeline"]
