@@ -40,18 +40,10 @@ dvc init --no-scm
 dvc repro $DVC_TARGET
 
 DVC_OUTPUTS_ARRAY=($DVC_OUTPUTS)
-if [ -z "$AWS_BATCH_JOB_ARRAY_INDEX" ]; then
-	for output in "${DVC_OUTPUTS_ARRAY[@]}"
-	do
-		tar cv --use-compress-program=pbzip2 -f $output.tar.bz2 $output
-		aws s3 cp $output.tar.bz2 $S3_RESULTS_PATH/
-	done
-else
-	for output in "${DVC_OUTPUTS_ARRAY[@]}"
-	do
-		aws s3 cp --recursive $output $S3_RESULTS_PATH/$AWS_BATCH_JOB_ID/$output/
-		aws s3 sync $output $S3_RESULTS_PATH/$AWS_BATCH_JOB_ID/$output/ --delete
-	done
-fi
+for output in "${DVC_OUTPUTS_ARRAY[@]}"
+do      
+        aws s3 cp --recursive $output $S3_RESULTS_PATH/$output/
+        aws s3 sync $output $S3_RESULTS_PATH/$output/ --delete
+done
 
 echo "Done"
