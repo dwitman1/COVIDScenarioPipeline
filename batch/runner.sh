@@ -43,7 +43,6 @@ DVC_OUTPUTS_ARRAY=($DVC_OUTPUTS)
 for output in "${DVC_OUTPUTS_ARRAY[@]}"
 do      
         aws s3 cp --recursive $output $S3_RESULTS_PATH/$output/
-        aws s3 sync $output $S3_RESULTS_PATH/$output/ --delete
 done
 
 echo "Done"
