@@ -11,6 +11,10 @@ dev-versions/
 reports/
 doc/html
 doc/latex
+data/
+model_output/
+model_parameters/
+hospitalization/
 
 # ^Joseph's stuff
 
@@ -54,3 +58,4 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+/data
