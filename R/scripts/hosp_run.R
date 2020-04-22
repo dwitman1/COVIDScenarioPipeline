@@ -152,7 +152,7 @@ if (scenario == "all" ) {
 }
 
 # Check for a sim offset if we are running on AWS in batch mode
-sim_offset = int(os.environ.get('AWS_BATCH_SIM_OFFSET', 0))
+sim_offset <- as.integer(Sys.getenv("AWS_BATCH_SIM_OFFSET", unset="0"))
 
 ## Running age-adjusted script
 if(run_age_adjust){
