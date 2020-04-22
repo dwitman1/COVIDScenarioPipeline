@@ -1,0 +1,11 @@
+md5: 742807a1a1de249378847c4140b42a6d
+cmd: Rscript R/scripts/hosp_run.R -c config.yml -p .
+deps:
+- md5: 950434440d8ab87e36d7c8ddbded6734.dir
+  path: model_output
+outs:
+- md5: 89139b24d7ce9164a498841e5093cec0.dir
+  path: hospitalization
+  cache: true
+  metric: false
+  persist: false
