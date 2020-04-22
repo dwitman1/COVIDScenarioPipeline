@@ -1,0 +1,18 @@
+md5: 8d6d0d25a61c3bfac8d37e0ed37e7d6e
+cmd: python3 simulate.py -c config.yml
+deps:
+- md5: c20b95cc4d9c3144600f633d21c8226e.dir
+  path: data
+- md5: 5048534d4e0094ba1e0357add6d4cde3
+  path: config.yml
+outs:
+- md5: 950434440d8ab87e36d7c8ddbded6734.dir
+  path: model_output
+  cache: true
+  metric: false
+  persist: false
+- md5: 8a52b90a849beaaa4ab6f492e783e191.dir
+  path: model_parameters
+  cache: true
+  metric: false
+  persist: false
