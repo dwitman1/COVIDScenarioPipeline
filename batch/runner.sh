@@ -31,6 +31,9 @@ tar -xvzf model_data.tar.gz -C model_data
 cd model_data
 Rscript local_install.R
 
+# Track our sim block for writing unique output files
+export AWS_BATCH_SIM_BLOCK=$((${AWS_BATCH_JOB_ARRAY_INDEX:-0} * ${SIMS_PER_JOB:-0}))
+
 # Initialize dvc and run the pipeline to re-create the
 # dvc target
 dvc init --no-scm
