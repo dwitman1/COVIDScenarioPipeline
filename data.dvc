@@ -1,0 +1,13 @@
+md5: 209c9bac3e342a9669980378cc50a867
+locked: true
+deps:
+- path: data
+  repo:
+    url: git@github.com:HopkinsIDD/COVID19_California.git
+    rev_lock: eb26721794acfd72237cc052d74d2dce6963fd7e
+outs:
+- md5: c20b95cc4d9c3144600f633d21c8226e.dir
+  path: data
+  cache: true
+  metric: false
+  persist: false
