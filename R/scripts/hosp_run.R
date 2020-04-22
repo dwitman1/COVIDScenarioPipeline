@@ -151,6 +151,8 @@ if (scenario == "all" ) {
   quit("yes", status=1)
 }
 
+# Check for a sim offset if we are running on AWS in batch mode
+sim_offset = int(os.environ.get('AWS_BATCH_SIM_OFFSET', 0))
 
 ## Running age-adjusted script
 if(run_age_adjust){
@@ -185,7 +187,8 @@ if(run_age_adjust){
                                                      cores = ncore,
                                                      data_dir = data_dir,
                                                      dscenario_name = cmd0,
-                                                     use_parquet = TRUE
+                                                     use_parquet = TRUE,
+                                                     sim_offset=sim_offset
       )
     }
   }
@@ -229,7 +232,8 @@ if(run_age_adjust){
                                       cores = ncore,
                                       data_dir = data_dir,
                                       dscenario_name = cmd0,
-                                      use_parquet = TRUE
+                                      use_parquet = TRUE,
+                                      sim_offset=sim_offset
       )
     }
   }

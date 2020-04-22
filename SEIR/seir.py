@@ -21,8 +21,7 @@ S, E, I1, I2, I3, R, cumI = np.arange(ncomp)
 def onerun_SEIR(sim_id, s):
     scipy.random.seed()
 
-    sim_block = int(os.environ.get('AWS_BATCH_SIM_BLOCK', 0))
-    sim_id_str = str(sim_block + sim_id).zfill(9)
+    sim_id_str = str(sim_id).zfill(9)
 
     npi = NPI.NPIBase.execute(npi_config=s.npi_config, global_config=config, geoids=s.spatset.nodenames)
     npi = npi.get().T
@@ -85,9 +84,9 @@ def onerun_SEIR(sim_id, s):
     return 1
 
 
-def run_parallel(s, *, n_jobs=1):
+def run_parallel(s, *, n_jobs=1, sim_offset=0):
     start = time.monotonic()
-    sim_ids = np.arange(1, s.nsim + 1)
+    sim_ids = np.arange(sim_offset + 1, sim_offset + s.nsim + 1)
 
     if n_jobs == 1:          # run single process for debugging/profiling purposes
         for sim_id in tqdm.tqdm(sim_ids):

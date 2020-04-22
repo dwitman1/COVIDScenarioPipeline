@@ -180,7 +180,8 @@ def simulate(config_file, scenarios, nsim, jobs, interactive, write_csv, write_p
 >> writing to folder : {s.datadir}{s.setup_name}
     """)
 
-        seir.run_parallel(s, n_jobs=jobs)
+        sim_offset = int(os.environ.get('AWS_BATCH_SIM_OFFSET', 0))
+        seir.run_parallel(s, n_jobs=jobs, sim_offset=sim_offset)
     print(f">> All runs completed in {time.monotonic() - start:.1f} seconds")
 
 

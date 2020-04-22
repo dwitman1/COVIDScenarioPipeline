@@ -237,7 +237,8 @@ build_hospdeath_par <- function(p_hosp,
                                 time_ventdur_pars = log(17),
                                 cores=8,
                                 root_out_dir='hospitalization',
-                                use_parquet = FALSE) {
+                                use_parquet = FALSE,
+                                sim_offset = 0) {
 
   n_sim <- length(list.files(data_dir))
   print(paste("Creating cluster with",cores,"cores"))
@@ -250,9 +251,8 @@ build_hospdeath_par <- function(p_hosp,
   print(paste("Running over",n_sim,"simulations"))
 
   pkgs <- c("dplyr", "readr", "data.table", "tidyr", "hospitalization")
-  sim_block <- as.integer(Sys.getenv("AWS_BATCH_SIM_BLOCK", unset="0"))
   foreach::foreach(s=seq_len(n_sim), .packages=pkgs) %dopar% {
-    sim_id <- s + sim_block
+    sim_id <- s + sim_offset
     dat_ <- hosp_load_scenario_sim(data_dir,sim_id,
                                    keep_compartments = "diffI",
                                    geoid_len = 5,
@@ -353,7 +353,8 @@ build_hospdeath_geoid_fixedIFR_par <- function(
   time_ventdur_pars = log(17),
   cores=8,
   root_out_dir='hospitalization',
-  use_parquet = FALSE
+  use_parquet = FALSE,
+  sim_offset=0
 ) {
   n_sim <- length(list.files(data_dir))
   print(paste("Creating cluster with",cores,"cores"))
@@ -371,9 +372,8 @@ build_hospdeath_geoid_fixedIFR_par <- function(
   print(paste("Running over",n_sim,"simulations"))
 
   pkgs <- c("dplyr", "readr", "data.table", "tidyr", "hospitalization")
-  sim_block <- as.integer(Sys.getenv("AWS_BATCH_SIM_BLOCK", unset="0"))
   foreach::foreach(s=seq_len(n_sim), .packages=pkgs) %dopar% {
-    sim_id <- s + sim_block
+    sim_id <- s + sim_offset
     dat_I <- hosp_load_scenario_sim(data_dir, sim_id,
                                     keep_compartments = "diffI",
                                     geoid_len=5,
