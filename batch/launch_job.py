@@ -54,8 +54,9 @@ def launch_batch(config_file, num_jobs, sims_per_job, dvc_target, s3_input_bucke
  
     # Upload the tar'd contents of this directory and the runner script to S3 
     runner_script_name = f"{job_name}-runner.sh"
+    local_runner_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'runner.sh')
     s3_client = boto3.client('s3')
-    s3_client.upload_file("batch/runner.sh", s3_input_bucket, runner_script_name)
+    s3_client.upload_file(local_runner_script, s3_input_bucket, runner_script_name)
     s3_client.upload_file(tarfile_name, s3_input_bucket, tarfile_name)
     os.remove(tarfile_name)
 
