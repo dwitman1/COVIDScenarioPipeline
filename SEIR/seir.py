@@ -21,7 +21,6 @@ S, E, I1, I2, I3, R, cumI = np.arange(ncomp)
 def onerun_SEIR(sim_id, s):
     scipy.random.seed()
 
-    sim_id_str = str(sim_id).zfill(9)
 
     npi = NPI.NPIBase.execute(npi_config=s.npi_config, global_config=config, geoids=s.spatset.nodenames)
     npi = npi.get().T
@@ -64,6 +63,7 @@ def onerun_SEIR(sim_id, s):
         out_df['comp'].replace(R, 'R', inplace=True)
         out_df['comp'].replace(cumI, 'cumI', inplace=True)
         out_df['comp'].replace(ncomp, 'diffI', inplace=True)
+        sim_id_str = str(sim_id + s.first_sim_index - 1).zfill(9)
         if s.write_csv:
             npi.to_csv(f"{s.paramdir}{sim_id}.snpi.csv", index_label="time")
             setup.parameters_write(parameters, f"{s.paramdir}{sim_id_str}.spar","csv")

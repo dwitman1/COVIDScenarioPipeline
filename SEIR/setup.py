@@ -84,7 +84,8 @@ class Setup():
                  write_csv=False,
                  write_parquet=False,
                  dt=1 / 6, # step size, in days
-                 nbetas=None): # # of betas, which are rates of infection
+                 nbetas=None,
+                 first_sim_index = 1): # # of betas, which are rates of infection
         self.setup_name = setup_name
         self.nsim = nsim
         self.dt = dt
@@ -98,6 +99,7 @@ class Setup():
         self.interactive = interactive
         self.write_csv = write_csv
         self.write_parquet = write_parquet
+        self.first_sim_index = first_sim_index
 
         if nbetas is None:
             nbetas = nsim
