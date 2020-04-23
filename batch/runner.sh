@@ -40,8 +40,10 @@ dvc repro $DVC_TARGET
 
 DVC_OUTPUTS_ARRAY=($DVC_OUTPUTS)
 for output in "${DVC_OUTPUTS_ARRAY[@]}"
-do      
-        aws s3 cp --recursive $output $S3_RESULTS_PATH/$output/
+do
+	if [ -d "$output" ]; then     
+        	aws s3 cp --quiet --recursive $output $S3_RESULTS_PATH/$output/
+	fi
 done
 
 echo "Done"
