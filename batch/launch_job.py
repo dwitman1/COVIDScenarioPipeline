@@ -49,7 +49,7 @@ def launch_batch(config_file, num_jobs, sims_per_job, dvc_target, s3_input_bucke
     tar = tarfile.open(tarfile_name, "w:gz")
     for p in os.listdir('.'):
         if not (p.startswith(".") or p.endswith("tar.gz") or p in dvc_outputs):
-            tar.add(p, filter=lambda x: if x.name.startswith('.') return None else return x)
+            tar.add(p, filter=lambda x: None if x.name.startswith('.') else x)
     tar.close()
  
     # Upload the tar'd contents of this directory and the runner script to S3 
