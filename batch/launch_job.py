@@ -29,27 +29,18 @@ import yaml
               help="The name of the AWS Batch Job Queue to use for the job")
 def launch_batch(config_file, num_jobs, sims_per_job, dvc_target, s3_input_bucket, s3_output_bucket, batch_job_definition, batch_job_queue):
 
-    raw_config = None
     with open(config_file) as f:
-        raw_config = f.read()
-    parsed_config = yaml.full_load(raw_config)
+        config = yaml.full_load(f)
 
     # A unique name for this job run, based on the config name and current time
-    job_name = f"{parsed_config['name']}-{int(time.time())}"
+    job_name = f"{config['name']}-{int(time.time())}"
     print("Preparing to run job: %s" % job_name)
-
-    print("Verifying that dvc target is up to date...")
-    exit_code, output = subprocess.getstatusoutput("dvc status")
-    if exit_code != 0:
-        print("dvc status is not up to date...")
-        print(output)
-        return 1
 
     # Update and save the config file with the number of sims to run
     print(f"Updating {config_file} to run {sims_per_job} simulations...")
-    raw_config = re.sub("nsimulations: \d+", "nsimulations: %d" % sims_per_job, raw_config)
-    with open(config_file, "w") as f:
-        f.write(raw_config)
+    config['nsimulations'] = sims_per_job
+    with open(config_file, 'w') as f:
+        yaml.dump(config, f, sort_keys=False)
 
     # Prepare to tar up the current directory, excluding any dvc outputs, so it
     # can be shipped to S3
@@ -57,8 +48,8 @@ def launch_batch(config_file, num_jobs, sims_per_job, dvc_target, s3_input_bucke
     tarfile_name = f"{job_name}.tar.gz"
     tar = tarfile.open(tarfile_name, "w:gz")
     for p in os.listdir('.'):
-        if not (p.startswith(".") or p.endswith("tar.gz") or p in dvc_outputs or p == "batch"):
-            tar.add(p)
+        if not (p.startswith(".") or p.endswith("tar.gz") or p in dvc_outputs):
+            tar.add(p, filter=lambda x: if x.name.startswith('.') return None else return x)
     tar.close()
  
     # Upload the tar'd contents of this directory and the runner script to S3 
@@ -103,9 +94,10 @@ def launch_batch(config_file, num_jobs, sims_per_job, dvc_target, s3_input_bucke
                 jobDefinition=batch_job_definition,
                 containerOverrides=container_overrides)
 
-    # TODO: record batch job info to a file so it can be tracked
-
-    return 0
+    print(f"Batch job with id {resp['jobId']} launched; output will be written to {results_path}")
+    (rc, txt) = subprocess.getstatusoutput(f"git checkout -b run_{job_name}")
+    print(txt)
+    return rc
 
 
 def get_dvc_outputs():
@@ -114,7 +106,7 @@ def get_dvc_outputs():
         with open(dvc_file) as df:
             d = yaml.full_load(df)
             if 'cmd' in d and 'outs' in d:
-                ret.extend([x['path'] for x in d['outs']])
+                ret.extend([x['path'] for x in d['outs'] if x['path']])
     return ret
 
 
