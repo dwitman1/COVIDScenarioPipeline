@@ -42,8 +42,8 @@ if(opt$config == ""){
 }
 config = covidcommon::load_config(opt$config)
 
-if(!('lambda' %in% names(config$seeding))) {
-  stop("The key seeding::lambda is required in the config file.")
+if(!('lambda_file' %in% names(config$seeding))) {
+  stop("The key seeding::lambda_file is required in the config file.")
 }
 if(!('perturbation_sd' %in% names(config$seeding))) {
   stop("The key seeding::perturbation_sd is required in the config file.")
@@ -207,6 +207,7 @@ perturb_seeding <- function(seeding,sd) {
 
 
 
+
 ##'
 ##' Function to go through to accept or reject seedings in a block manner based
 ##' on a geoid specific likelihood.
@@ -214,9 +215,26 @@ perturb_seeding <- function(seeding,sd) {
 ##'
 ##' @param seeding_orig original seeding file.
 ##' @param seeding_prop proposal seeding file
-##' @param loc_lls the lik
-iterateAcceptSeeding <- function(x,...){
-  return(x)
+##' @param loc_lls a dataframe with columns orig_ll and prop_ll per place
+##'
+##' @return a new data frame with the confirmed seedin.
+##'
+accept_reject_new_seeding <- function(seeding_orig, seeding_prop, orig_lls, prop_lls) {
+
+    rc <- seeding_orig
+
+    if(!all(orig_lls$geoid == prop_lls$geoid)){stop("geoids must match")}
+    ##draww accepts/rejects
+    ratio <- exp(prop_lls$ll - orig_lls$ll)
+    accept <- ratio>runif(length(ratio),0,1)
+
+    orig_lls$ll[accept] <- prop_lls$ll[accept]
+
+    for (place in orig_lls$geoid[accept]) {
+        rc$amount[rc$geoid==place] <- seeding_prop$amount[rc$geoid==place]
+    }
+
+    return(list(seeding=rc,lls = orig_lls))
 }
 
 
@@ -402,13 +420,22 @@ for(scenario in scenarios) {
         current_likelihood <- likelihood
         current_index <- index
         initial_seeding <- current_seeding
+	previous_likelihood_data <- log_likelihood_data
         next
       }
       if(iterateAccept(current_likelihood, likelihood, 'll')){
         current_index <- index
         current_likelihood <- likelihood
       }
-      initial_seeding <- iterateAcceptSeeding(current_seeding,initial_seeding)
+
+      seeding_list <- accept_reject_new_seeding(
+        current_seeding,
+	initial_seeding,
+	log_likelihood_data,
+	previous_likelihood_data
+      )
+      initial_seeding <- seeding_list$seeding
+      previous_likelihood_data <- seeding_list$likelihood
       print(paste("Current index is ",current_index))
     }
 
