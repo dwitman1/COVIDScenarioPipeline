@@ -42,6 +42,13 @@ if(opt$config == ""){
 }
 config = covidcommon::load_config(opt$config)
 
+if(!('lambda' %in% names(config$seeding))) {
+  stop("The key seeding::lambda is required in the config file.")
+}
+if(!('perturbation_sd' %in% names(config$seeding))) {
+  stop("The key seeding::perturbation_sd is required in the config file.")
+}
+
 geodata <- report.generation::load_geodata_file(
   paste(
     config$spatial_setup$base_path,
@@ -280,9 +287,6 @@ for(scenario in scenarios) {
     current_index <- 0
     current_likelihood <- data.frame()
 
-    if(!('lambda' %in% names(config$seeding))) {
-      stop("The key seeding::lambda is required in the config file.")
-    }
     initial_seeding <- readr::read_csv(config$seeding$lambda_file)
     for( index in seq_len(opt$simulations_per_slot)) {
       print(index)
