@@ -3,16 +3,16 @@ option_list = list(
   optparse::make_option(c("-p", "--pipepath"), action="store", type='character', help="path to the COVIDScenarioPipeline directory", default = "./"),
   optparse::make_option(c("-s", "--scenarios"), action="store", default='all', type='character', help="name of the intervention to run, or 'all' to run all of them"),
   optparse::make_option(c("-d", "--deathrate"), action="store", default='all', type='character', help="name of the death scenarios to run, or 'all' to run all of them"),
-  optparse::make_option(c("-j", "--jobs"), action="store", default="8", type='integer', help="Number of jobs to run in parallel"),
+  optparse::make_option(c("-j", "--jobs"), action="store", default="72", type='integer', help="Number of jobs to run in parallel"),
   optparse::make_option(c("-k", "--sims_per_slot"), action="store", default=NA, type='integer', help = "Number of simulations to run per slot"),
   optparse::make_option(c("-n", "--slots"), action="store", default=NA, type='integer', help = "Number of slots to run."),
   optparse::make_option(c("-y", "--python"), action="store", default="python3", type='character', help="path to python executable"),
   optparse::make_option(c("-r", "--rpath"), action="store", default="Rscript", type = 'character', help = "path to R executable")
 )
 
-install.packages('xts', repos='http://cran.us.r-project.org')
-install.packages('zoo', repos='http://cran.us.r-project.org')
-install.packages('covidImportation',type='source',repos=NULL)
+# install.packages('xts', repos='http://cran.us.r-project.org')
+# install.packages('zoo', repos='http://cran.us.r-project.org')
+# install.packages('covidImportation',type='source',repos=NULL)
 # devtools::install_github("HopkinsIDD/covidImportation")
 
 parser=optparse::OptionParser(option_list=option_list)
@@ -51,12 +51,30 @@ if(is.na(opt$slots)) {
   opt$slots <- config$nsimulations
 }
 
-
-for(slot in seq_len(opt$slots)){
+library(foreach)
+cl <- parallel::makeCluster(opt$j)
+doParallel::registerDoParallel(cl)
+foreach(scenario = scenarios) %:%
+foreach(deathrate = deathrates) %:%
+foreach(slot = seq_len(opt$slots)) %dopar% {
   print(paste("Slot",slot,"of",opt$slots))
-  err <- 0
-  err <- err + system(paste(opt$python,paste(opt$pipepath,"simulate.py", sep='/'),"-j",opt$jobs,"-c",opt$config,"-n",opt$sims_per_slot))
-  err <- err + system(paste(opt$rpath,paste(opt$pipepath,"R","scripts","hosp_run.R", sep='/'), "-j",opt$jobs,"-c",opt$config,"-p",opt$pipepath))
-  err <- err + system(paste(opt$rpath,paste(opt$pipepath,"R","scripts","filter_MC.R", sep='/'), "-j",opt$jobs,"-c",opt$config,"-k",slot))
-  if(err != 0){quit(err)}
+  err <- system(
+    paste(
+      opt$rpath,
+      paste(
+        opt$pipepath,"R","scripts","filter_MC.R",sep='/'),
+        "-c",opt$config,
+        "-s",scenario,
+        "-d",deathrate,
+        "-j",1,
+        "-k",opt$sims_per_slot,
+        "-n",opt$slots,
+        "-i",slot,
+        "-y",opt$python,
+        "-r",opt$rpath,
+        "-p",opt$pipepath
+      )
+    )
+  if(err != 0){quit("no")}
 }
+parallel::stopCluster(cl)
