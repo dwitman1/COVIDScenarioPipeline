@@ -280,6 +280,9 @@ for(scenario in scenarios) {
     current_index <- 0
     current_likelihood <- data.frame()
 
+    if(!('lambda' %in% names(config$seeding))) {
+      stop("The key seeding::lambda is required in the config file.")
+    }
     initial_seeding <- readr::read_csv(config$seeding$lambda_file)
     for( index in seq_len(opt$simulations_per_slot)) {
       print(index)
