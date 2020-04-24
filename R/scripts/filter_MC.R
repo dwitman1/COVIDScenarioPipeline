@@ -61,56 +61,56 @@ if(!dir.exists(data_dir)){
   dir.create(data_dir,recursive=TRUE)
 }
 # Parse jhucsse using covidImportation
-###if (!file.exists(data_path)) {
-###  case_data_dir <- paste(config$spatial_setup$base_path,config$spatial_setup$setup_name,"case_data", sep = '/')
-###  if(!dir.exists(case_data_dir)){
-###    dir.create(case_data_dir,recursive=TRUE)
-###  }
-###  jhucsse_cases <- covidImportation::get_clean_JHUCSSE_data(aggr_level = "UID", 
-###                                   last_date = as.POSIXct(lubridate::ymd(config$end_date)),
-###                                   case_data_dir = case_data_dir,
-###                                   save_raw_data=TRUE,
-###                                   us_data_only=FALSE) %>%
-###                     select(FIPS,Update,Confirmed)
-###
-###  jhucsse_deaths <- covidImportation::get_clean_JHUCSSE_deaths(aggr_level = "UID", #"source",
-###                               last_date = Sys.time(),
-###                               case_data_dir = case_data_dir,
-###                               save_raw_data=TRUE,
-###                               us_data_only=FALSE) %>%
-###                     select(FIPS,Update,Deaths)
-###
-###  jhucsse <- full_join(jhucsse_cases,jhucsse_deaths)
-###  jhucsse  <- 
-###    jhucsse %>%
-###    dplyr::mutate(date = lubridate::ymd(Update)) %>%
-###    dplyr::filter(FIPS %in% geodata[[obs_nodename]]) %>%
-###    dplyr::rename(
-###      cumConfirmed = Confirmed,
-###      cumDeaths = Deaths
-###    ) %>%
-###    dplyr::arrange(date)
-###  if(any(is.na(jhucsse$cumConfirmed))){
-###    jhucsse$cumConfirmed[is.na(jhucsse$cumConfirmed)] <- 0
-###  }
-###  if(any(is.na(jhucsse$cumDeaths))){
-###    jhucsse$cumDeaths[is.na(jhucsse$cumDeaths)] <- 0
-###  }
-###  jhucsse <- jhucsse %>%
-###    dplyr::group_by(FIPS) %>% 
-###    dplyr::group_modify(
-###      function(.x,.y){
-###        .x$cumConfirmed = cummax(.x$cumConfirmed)
-###        .x$conf_incid = c(.x$cumConfirmed[1],diff(.x$cumConfirmed))
-###        .x$cumDeaths = cummax(.x$cumDeaths)
-###        .x$death_incid = c(.x$cumDeaths[1],diff(.x$cumDeaths,))
-###        return(.x)
-###      }
-###    )
-###  names(jhucsse)[names(jhucsse) == 'FIPS'] <- as.character(obs_nodename)
-###  write_csv(jhucsse, data_path)
-###  rm(jhucsse)
-###}
+if (!file.exists(data_path)) {
+  case_data_dir <- paste(config$spatial_setup$base_path,config$spatial_setup$setup_name,"case_data", sep = '/')
+  if(!dir.exists(case_data_dir)){
+    dir.create(case_data_dir,recursive=TRUE)
+  }
+  jhucsse_cases <- covidImportation::get_clean_JHUCSSE_data(aggr_level = "UID", 
+                                   last_date = as.POSIXct(lubridate::ymd(config$end_date)),
+                                   case_data_dir = case_data_dir,
+                                   save_raw_data=TRUE,
+                                   us_data_only=FALSE) %>%
+                     select(FIPS,Update,Confirmed)
+
+  jhucsse_deaths <- covidImportation::get_clean_JHUCSSE_deaths(aggr_level = "UID", #"source",
+                               last_date = Sys.time(),
+                               case_data_dir = case_data_dir,
+                               save_raw_data=TRUE,
+                               us_data_only=FALSE) %>%
+                     select(FIPS,Update,Deaths)
+
+  jhucsse <- full_join(jhucsse_cases,jhucsse_deaths)
+  jhucsse  <- 
+    jhucsse %>%
+    dplyr::mutate(date = lubridate::ymd(Update)) %>%
+    dplyr::filter(FIPS %in% geodata[[obs_nodename]]) %>%
+    dplyr::rename(
+      cumConfirmed = Confirmed,
+      cumDeaths = Deaths
+    ) %>%
+    dplyr::arrange(date)
+  if(any(is.na(jhucsse$cumConfirmed))){
+    jhucsse$cumConfirmed[is.na(jhucsse$cumConfirmed)] <- 0
+  }
+  if(any(is.na(jhucsse$cumDeaths))){
+    jhucsse$cumDeaths[is.na(jhucsse$cumDeaths)] <- 0
+  }
+  jhucsse <- jhucsse %>%
+    dplyr::group_by(FIPS) %>% 
+    dplyr::group_modify(
+      function(.x,.y){
+        .x$cumConfirmed = cummax(.x$cumConfirmed)
+        .x$conf_incid = c(.x$cumConfirmed[1],diff(.x$cumConfirmed))
+        .x$cumDeaths = cummax(.x$cumDeaths)
+        .x$death_incid = c(.x$cumDeaths[1],diff(.x$cumDeaths,))
+        return(.x)
+      }
+    )
+  names(jhucsse)[names(jhucsse) == 'FIPS'] <- as.character(obs_nodename)
+  write_csv(jhucsse, data_path)
+  rm(jhucsse)
+}
 
 # Parse scenarios arguments
 deathrates <- opt$d
