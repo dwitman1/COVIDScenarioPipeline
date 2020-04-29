@@ -27,7 +27,7 @@ option_list = list(
   optparse::make_option(c("-i", "--this_slot"), action="store", default="1", type='integer', help = "id of this slot"),
   optparse::make_option(c("-y", "--python"), action="store", default="python3", type='character', help="path to python executable"),
   optparse::make_option(c("-r", "--rpath"), action="store", default="Rscript", type = 'character', help = "path to R executable"),
-  optparse::make_option(c("-p", "--pipepath"), action="store", type='character', help="path to the COVIDScenarioPipeline directory", default = "./")
+  optparse::make_option(c("-p", "--pipepath"), action="store", type='character', help="path to the COVIDScenarioPipeline directory", default = "COVIDScenarioPipeline/")
 )
 
 parser=optparse::OptionParser(option_list=option_list)
@@ -42,11 +42,14 @@ if(opt$config == ""){
 }
 config = covidcommon::load_config(opt$config)
 
-if(!('lambda_file' %in% names(config$seeding))) {
-  stop("The key seeding::lambda_file is required in the config file.")
-}
 if(!('perturbation_sd' %in% names(config$seeding))) {
   stop("The key seeding::perturbation_sd is required in the config file.")
+}
+if(config$seeding$method != 'FolderDraw'){
+  stop("This filtration method requires the seeding method 'FolderDraw'")
+}
+if(!('lambda_file' %in% names(config$seeding))) {
+  stop("Despite being a folder draw method, filtration method requires the seeding to provide a lambda_file argument.")
 }
 
 geodata <- report.generation::load_geodata_file(
@@ -73,23 +76,22 @@ if (!file.exists(data_path)) {
   if(!dir.exists(case_data_dir)){
     dir.create(case_data_dir,recursive=TRUE)
   }
-  jhucsse_cases <- covidImportation::get_clean_JHUCSSE_data(aggr_level = "UID", 
-                                   last_date = as.POSIXct(lubridate::ymd(config$end_date)),
-                                   case_data_dir = case_data_dir,
-                                   save_raw_data=TRUE,
-                                   us_data_only=FALSE) %>%
-                     select(FIPS,Update,Confirmed)
-
+  jhucsse_cases <- covidImportation::get_clean_JHUCSSE_data(aggr_level = "UID",
+                                                            last_date = as.POSIXct(lubridate::ymd(config$end_date)),
+                                                            case_data_dir = case_data_dir,
+                                                            save_raw_data=TRUE,
+                                                            us_data_only=FALSE) %>%
+    select(FIPS,Update,Confirmed)
+  
   jhucsse_deaths <- covidImportation::get_clean_JHUCSSE_deaths(aggr_level = "UID", #"source",
-                               last_date = Sys.time(),
-                               case_data_dir = case_data_dir,
-                               save_raw_data=TRUE,
-                               us_data_only=FALSE) %>%
-                     select(FIPS,Update,Deaths)
-
+                                                               last_date = Sys.time(),
+                                                               case_data_dir = case_data_dir,
+                                                               save_raw_data=TRUE,
+                                                               us_data_only=FALSE) %>%
+    select(FIPS,Update,Deaths)
+  
   jhucsse <- full_join(jhucsse_cases,jhucsse_deaths)
-  jhucsse  <- 
-    jhucsse %>%
+  jhucsse  <- jhucsse %>%
     dplyr::mutate(date = lubridate::ymd(Update)) %>%
     dplyr::filter(FIPS %in% geodata[[obs_nodename]]) %>%
     dplyr::rename(
@@ -152,7 +154,7 @@ periodAggregate <- function(data, dates, end_date = NULL, period_unit, period_k,
   }
   
   xtsobj <- as.xts(zoo(data, dates))
-  stats <- period.apply(xtsobj, 
+  stats <- period.apply(xtsobj,
                         endpoints(xtsobj, on = period_unit, k = period_k),
                         aggregator)
   return(stats)
@@ -161,23 +163,23 @@ periodAggregate <- function(data, dates, end_date = NULL, period_unit, period_k,
 getStats <- function(df, time_col, var_col, end_date = NULL, stat_list) {
   rc <- list()
   for(stat in names(stat_list)){
-      s <- stat_list[[stat]]
-      aggregator <- match.fun(s$aggregator)
-      # Get the time period over whith to apply aggregation
-      period_info <- strsplit(s$period, " ")[[1]]
-      
-      res <- periodAggregate(df[[s[[var_col]]]],
-                             df[[time_col]],
-                             end_date,
-                             period_info[2],
-                             period_info[1],
-                             aggregator,
-                             na.rm = s$remove_na)
-      rc[[stat]] <- res %>% 
-        as.data.frame() %>% 
-        mutate(date = rownames(.)) %>% 
-        set_colnames(c(var_col, "date")) %>% 
-        select(date, one_of(var_col))
+    s <- stat_list[[stat]]
+    aggregator <- match.fun(s$aggregator)
+    # Get the time period over whith to apply aggregation
+    period_info <- strsplit(s$period, " ")[[1]]
+    
+    res <- periodAggregate(df[[s[[var_col]]]],
+                           df[[time_col]],
+                           end_date,
+                           period_info[2],
+                           period_info[1],
+                           aggregator,
+                           na.rm = s$remove_na)
+    rc[[stat]] <- res %>% 
+      as.data.frame() %>% 
+      mutate(date = rownames(.)) %>% 
+      set_colnames(c(var_col, "date")) %>% 
+      select(date, one_of(var_col))
   }
   return(rc)
 }
@@ -194,19 +196,55 @@ getStats <- function(df, time_col, var_col, end_date = NULL, stat_list) {
 ##' @return a pertubed data frame
 ##'
 perturb_seeding <- function(seeding,sd) {
-    require(tidyverse)
-    seeding <- seeding%>%
-        group_by(place)%>%
-        mutate(date = date+round(rnorm(1,0,sd)))%>%
-        ungroup()%>%
-        mutate(amount=rpois(length(amount),amount))
-
-    return(seeding)
-
+  require(tidyverse)
+  seeding <- seeding%>%
+    group_by(place)%>%
+    mutate(date = date+round(rnorm(1,0,sd)))%>%
+    ungroup()%>%
+    mutate(amount=rpois(length(amount),amount))
+  
+  return(seeding)
+  
 }
 
+##' Function for determining where to write the seeding.csv file
+##' @param config The config for this run
+##' @param index The index of this simulation
+##'
+##' @return NULL
+##'
+seeding_file_path <- function(config,index){
+  if(length(config$interventions$scenarios) > 1){
+    stop("Changes need to be made to the SEIR code to support more than one scenario (in paralllel)")
+  }
+  
+  return(sprintf("%s/importation_%s.csv",config$seeding$folder_path,index))
+}
 
-
+##' Fuction perturbs an npi parameter file based on user-specified distributions
+##'
+##' @param params the original paramters
+##' @param perturbations a list of standard deviations
+##'
+##'
+##' @return a pertubed data frame
+##'
+perturb_params <- function(params, perturbations) {
+  require(dplyr)
+  require(magrittr)
+  params_new <- params
+  geoids <- colnames(select(params, -time, -parameter, -npi_name))
+  for (par in names(perturbations)) {
+    if (perturbations[[par]]$distribution == "normal") {
+      pert_dist <- function(n) {rnorm(n, mean = perturbations[[par]]$mu, sd = perturbations[[par]]$sd)}
+    } 
+    ind <- params[["parameter"]] == par 
+    for (gid in geoids) {
+      params_new[[gid]][ind] <- params_new[[gid]][ind] + pert_dist(1)
+    }
+  }
+  return(params_new)
+}
 
 ##'
 ##' Function to go through to accept or reject seedings in a block manner based
@@ -219,46 +257,46 @@ perturb_seeding <- function(seeding,sd) {
 ##'
 ##' @return a new data frame with the confirmed seedin.
 ##'
-accept_reject_new_seeding <- function(seeding_orig, seeding_prop, orig_lls, prop_lls) {
-
-    rc <- seeding_orig
-
-    if(!all(orig_lls$geoid == prop_lls$geoid)){stop("geoids must match")}
-    ##draww accepts/rejects
-    ratio <- exp(prop_lls$ll - orig_lls$ll)
-    accept <- ratio>runif(length(ratio),0,1)
-
-    orig_lls$ll[accept] <- prop_lls$ll[accept]
-
-    for (place in orig_lls$geoid[accept]) {
-        rc$amount[rc$geoid==place] <- seeding_prop$amount[rc$geoid==place]
-    }
-
-    return(list(seeding=rc,lls = orig_lls))
+accept_reject_new_seeding_params <- function(seeding_orig, seeding_prop, 
+                                             params_orig, params_prop, 
+                                             orig_lls, prop_lls) {
+  rc_seeding <- seeding_orig
+  rc_params <- params_orig
+  
+  if(!all(orig_lls$geoid == prop_lls$geoid)){stop("geoids must match")}
+  ##draww accepts/rejects
+  ratio <- exp(prop_lls$ll - orig_lls$ll)
+  accept <- ratio>runif(length(ratio),0,1)
+  
+  orig_lls$ll[accept] <- prop_lls$ll[accept]
+  
+  for (place in orig_lls$geoid[accept]) {
+    rc_seeding$amount[rc_seeding$geoid==place] <- seeding_prop$amount[seeding_prop$geoid==place]
+    rc_seeding$date[rc_seeding$geoid==place] <- seeding_prop$date[seeding_prop$geoid==place]
+    rc_params[, place] <- params_prop[, place]
+  }
+  
+  return(list(seeding=rc_seeding, params=rc_params, lls = orig_lls))
 }
 
-
-
-##Calculate the model evaluatoin statistic.
+##Calculate the model evaluation statistic.
 logLikStat <- function(obs, sim, distr, param, add_one = F) {
   if (add_one) {
     sim[sim == 0] = 1
   }
-
   if(distr == "pois") {
-      rc <- dpois(obs, sim, log = T)
+    rc <- dpois(obs, sim, log = T)
   } else if (distr == "norm") {
-      rc <- dnorm(obs, sim, sd = param[1], log = T)
+    rc <- dnorm(obs, sim, sd = param[1], log = T)
   } else if (distr == "nbinom") {
-      rc <- dnbinom(obs, sim, k = param[1], log = T)
+    rc <- dnbinom(obs, sim, k = param[1], log = T)
   } else if (distr == "sqrtnorm") {
-      rc <- dnorm(sqrt(obs), sqrt(sim), sd=sqrt(sim)*param[[1]], log = T)
+    rc <- dnorm(sqrt(obs), sqrt(sim), sd=sqrt(sim)*param[[1]], log = T)
   } else if (distr == "sqrtnorm_scale_sim") { #param 1 is cov, param 2 is multipler
-      rc <- dnorm(sqrt(obs), sqrt(sim*param[[2]]), sd=sqrt(sim*param[[2]])*param[[1]],log=T)
+    rc <- dnorm(sqrt(obs), sqrt(sim*param[[2]]), sd=sqrt(sim*param[[2]])*param[[1]],log=T)
   } else {
-      stop("Invalid stat specified")
+    stop("Invalid stat specified")
   }
-
   return(rc)
 }
 
@@ -287,13 +325,13 @@ data_stats <- lapply(
       "data_var",
       stat_list = config$filtering$statistics)
   }) %>% 
-    set_names(geonames)
+  set_names(geonames)
 
 required_packages <- c("dplyr", "magrittr", "xts", "zoo", "stringr")
 for(scenario in scenarios) {
   for(deathrate in deathrates) {
-      # Data -------------------------------------------------------------------------
-      # Load
+    # Data -------------------------------------------------------------------------
+    # Load
     
     err <- system(paste(
       opt$rpath,
@@ -301,17 +339,21 @@ for(scenario in scenarios) {
       "-c",opt$config
     ))
     if(err != 0){quit("no")}
-
+    
     current_index <- 0
     current_likelihood <- data.frame()
-
+    
     initial_seeding <- readr::read_csv(config$seeding$lambda_file)
-    for( index in seq_len(opt$simulations_per_slot)) {
+    # TODO CHANGE TO FIRST DRAW OF SEIR CODE
+    initial_params <- arrow::read_parquet("model_parameters/test_simple_None/000000001.snpi.parquet")
+    
+    for(index in seq_len(opt$simulations_per_slot)) {
       print(index)
       # Load sims -----------------------------------------------------------
       
       current_seeding <- perturb_seeding(initial_seeding,config$seeding$perturbation_sd)
-     
+      current_params <- perturb_params(initial_params, config$filtering$perturbations)
+      
       file <- paste(
         'hospitalization',
         'model_output',
@@ -326,7 +368,7 @@ for(scenario in scenarios) {
         sep = '/'
       )
       print(paste("Reading",file))
-
+      
       ## Generate files
       err <- system(paste(
         opt$python,
@@ -350,8 +392,8 @@ for(scenario in scenarios) {
       if(err != 0){quit("no")}
       
       print(paste("Reading",file))
-
-      sim_hosp <- report.generation:::read_file_of_type(gsub(".*[.]","",file))(file) %>% 
+      
+      sim_hosp <- report.generation:::read_file_of_type(gsub(".*[.]","",file))(file) %>%
         filter(time <= max(obs$date)) %>%
         select(-date_inds)
       
@@ -360,8 +402,9 @@ for(scenario in scenarios) {
       lhs <- unique(sim_hosp[[obs_nodename]])
       rhs <- unique(names(data_stats))
       all_locations <- rhs[rhs %in% lhs]
+      
       for(location in all_locations) {
-      # log_likelihood_data <- foreach (location = all_locations) %do% {
+        # log_likelihood_data <- foreach (location = all_locations) %do% {
         # Compute log-likelihood of data for each sim
         # This part can be parallelized
         # One scenarios, one pdeath
@@ -370,7 +413,7 @@ for(scenario in scenarios) {
             filter(time <= max(obs$date)) %>%
             select(-date_inds)
         }
-
+        
         local_sim_hosp <- dplyr::filter(sim_hosp, !!rlang::sym(obs_nodename) == location)
         sim_stats <- getStats(
           local_sim_hosp,
@@ -379,13 +422,11 @@ for(scenario in scenarios) {
           end_date = max(obs$date[obs[[obs_nodename]] == location]),
           config$filtering$statistics 
         )
-          
         
         # Get observation statistics
         log_likelihood <- list()
         for(var in names(data_stats[[location]])) {
-        # log_likelihood <- foreach (var = names(data_stats[[location]]), .combine = sum) %do% {
-          
+          # log_likelihood <- foreach (var = names(data_stats[[location]]), .combine = sum) %do% {
           log_likelihood[[var]] <- logLikStat(
             obs = data_stats[[location]][[var]]$data_var,
             sim = sim_stats[[var]]$sim_var,
@@ -393,52 +434,58 @@ for(scenario in scenarios) {
             param = config$filtering$statistics[[var]]$likelihood$param,
             add_one = config$filtering$statistics[[var]]$add_one
           )
-        # }
+          # }
         }
         # Compute log-likelihoods
-  
+        
         log_likelihood_data[[location]] <- dplyr::tibble(
           ll = sum(unlist(log_likelihood)),
           filename = file,
           geoid = location
         )
         names(log_likelihood_data)[names(log_likelihood_data) == 'geoid'] <- obs_nodename
-      # }
       }
       rm(sim_hosp)
-  
+      
       log_likelihood_data <- log_likelihood_data %>% do.call(what=rbind)
-  
+      
       print(log_likelihood_data)
       
       # Compute total loglik for each sim
       likelihood <- log_likelihood_data %>% 
         summarise(ll = sum(ll, na.rm = T)) %>% 
         mutate(pdeath = deathrate, scenario = scenario)
+      
       ## For logging
       if(current_index == 0){
         current_likelihood <- likelihood
         current_index <- index
         initial_seeding <- current_seeding
-	previous_likelihood_data <- log_likelihood_data
+        initial_params <- current_params
+        previous_likelihood_data <- log_likelihood_data
         next
       }
+      print(paste("Current likelihood",current_likelihood,"Proposed likelihood",likelihood))
+      
       if(iterateAccept(current_likelihood, likelihood, 'll')){
         current_index <- index
         current_likelihood <- likelihood
       }
-
-      seeding_list <- accept_reject_new_seeding(
+      
+      seeding_params_list <- accept_reject_new_seeding_params(
         current_seeding,
-	initial_seeding,
-	log_likelihood_data,
-	previous_likelihood_data
+        initial_seeding,
+        current_params,
+        initial_params,
+        log_likelihood_data,
+        previous_likelihood_data
       )
-      initial_seeding <- seeding_list$seeding
-      previous_likelihood_data <- seeding_list$likelihood
+      initial_seeding <- seeding_params_list$seeding
+      initial_params <- seeding_params_list$params
+      previous_likelihood_data <- seeding_params_list$likelihood
       print(paste("Current index is ",current_index))
     }
-
+    
     current_file <- paste(
       'hospitalization',
       'model_output',
@@ -452,7 +499,7 @@ for(scenario in scenarios) {
       ),
       sep = '/'
     )
-
+    
     target_file <- paste(
       'hospitalization',
       'model_output',
@@ -466,7 +513,6 @@ for(scenario in scenarios) {
       ),
       sep = '/'
     )
-
     print(paste("Copying",current_file,"to",target_file))
     target_dir <- gsub('/[^/]*$','',target_file)
     dir.create(target_dir, recursive=TRUE)
