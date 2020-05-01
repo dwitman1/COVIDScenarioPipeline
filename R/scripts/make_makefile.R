@@ -38,6 +38,7 @@ cat("\n")
 
 using_importation <- ("importation" %in% names(config))
 generating_report <- ("report" %in% names(config))
+using_static_filter <- ("dynfilter_path" %in% names(config))
 
 if(generating_report)
 {
@@ -53,12 +54,12 @@ if(generating_report)
   report_name = paste0(report_name, "_",  format(Sys.Date(), format="%Y%m%d"))
 }
 
-importation_target_name <- function(simulation, prefix = ""){
-  paste0(".files/",prefix,simulation,"_importation")
+importation_target_name <- function(simulation){
+  paste0(".files/",simulation,"_importation")
 }
 
-importation_make_command <- function(simulation,prefix=""){
-  target_name <- importation_target_name(simulation,prefix)
+importation_make_command <- function(simulation){
+  target_name <- importation_target_name(simulation)
   dependency_name <- ""
   command_name <- paste0("$(RSCRIPT) $(PIPELINE)/R/scripts/importation.R -c  $(CONFIG) -j $(NCOREPER)")
   touch_name <- paste0("touch ",target_name)
@@ -70,13 +71,13 @@ importation_make_command <- function(simulation,prefix=""){
   ))
 }
 
-filter_target_name <- function(simulation, prefix = "" ){
-  paste0(".files/",prefix,simulation,"_filter")
+filter_target_name <- function(simulation){
+  paste0(".files/",simulation,"_filter")
 }
 
-filter_make_command <- function(simulation,prefix=""){
-  target_name <- filter_target_name(simulation,prefix)
-  dependency_name <- importation_target_name(simulation, prefix=prefix)
+filter_make_command <- function(simulation){
+  target_name <- filter_target_name(simulation)
+  dependency_name <- importation_target_name(simulation)
   command_name<- paste0("$(RSCRIPT) $(PIPELINE)/R/scripts/create_filter.R -c $(CONFIG)")
   touch_name <- paste0("touch ",target_name)
   return(paste0(
@@ -87,13 +88,13 @@ filter_make_command <- function(simulation,prefix=""){
   ))
 }
 
-hospitalization_target_name <- function(simulation,scenario,deathrate, prefix = ''){
-  paste0(".files/",prefix,simulation,"_hospitalization_",scenario,"_",deathrate)
+hospitalization_target_name <- function(simulation,scenario,deathrate){
+  paste0(".files/",simulation,"_hospitalization_",scenario,"_",deathrate)
 }
 
-hospitalization_make_command <- function(simulation,scenario,deathrate, prefix = ''){
-  target_name <- hospitalization_target_name(simulation,scenario,deathrate, prefix = prefix)
-  dependency_name <- simulation_target_name(simulation,scenario, prefix = prefix)
+hospitalization_make_command <- function(simulation,scenario,deathrate){
+  target_name <- hospitalization_target_name(simulation,scenario,deathrate)
+  dependency_name <- simulation_target_name(simulation,scenario)
   command_name <- paste("$(RSCRIPT) $(PIPELINE)/R/scripts/hosp_run.R -s",scenario,
                           "-d",deathrate,"-j $(NCOREPER) -c $(CONFIG) -p $(PIPELINE)")
   touch_name <- paste0("touch ",target_name)
@@ -105,22 +106,25 @@ hospitalization_make_command <- function(simulation,scenario,deathrate, prefix =
   ))
 }
 
-simulation_target_name <- function(simulation,scenario, prefix = ''){
-  paste0(".files/", prefix,simulation,"_simulation_",scenario)
+simulation_target_name <- function(simulation,scenario){
+  paste0(".files/",simulation,"_simulation_",scenario)
 }
 
-simulation_make_command <- function(simulation,scenario,previous_simulation, prefix = ''){
-  target_name <- simulation_target_name(simulation,scenario, prefix = prefix)
+simulation_make_command <- function(simulation,scenario,previous_simulation){
+  target_name <- simulation_target_name(simulation,scenario)
   dependency_name <- ""
   if(!is.na(previous_simulation)){
-    dependency_name <- simulation_target_name(previous_simulation,scenario, prefix = prefix)
+    dependency_name <- simulation_target_name(previous_simulation,scenario)
   } else {
     previous_simulation <- 0
   }
   if(using_importation){
-    dependency_name <- paste(dependency_name,filter_target_name(simulation,prefix),importation_target_name(simulation,prefix))
+    dependency_name <- paste(dependency_name,importation_target_name(simulation))
   }
-  command_name <- paste0("$(PYTHON) $(PIPELINE)/simulate.py -c $(CONFIG) -s ",scenario," -n ",simulation - previous_simulation," -j $(NCOREPER)")
+  if(using_static_filter){
+    dependency_name <- paste(dependency_name, filter_target_name(simulation))
+  }
+  command_name <- paste0("$(PYTHON) -m SEIR -c $(CONFIG) -s ",scenario," -n ",simulation - previous_simulation," -j $(NCOREPER)")
   touch_name <- paste0("touch ",target_name)
   return(paste0(
     target_name, ": .files/directory_exists ",
@@ -128,6 +132,69 @@ simulation_make_command <- function(simulation,scenario,previous_simulation, pre
     "\t",command_name, "\n",
     "\t",touch_name, "\n"
   ))
+}
+
+quant_summ_geo_extent_target_name <- function(deathrate) {
+  return(paste0("quantile_summary/geo_extent_summary_",deathrate,".csv"))
+}
+
+quant_summ_geo_extent_make_command <- function(deathrate, nsimulation, scenarios) {
+  target_name <- quant_summ_geo_extent_target_name(deathrate)
+  dependencies <- ""
+  command <- "mkdir -p quantile_summary\n"
+  command <- paste0(command,'\t$(RSCRIPT) $(PIPELINE)/scripts/QuantileSummarizeGeoExtent.R -c $(CONFIG) -j $(NCOREPER)')
+  command <- paste(command, "-n", nsimulation, 
+                            "-d", deathrate,
+                            "-o $@")
+  for (scenario in scenarios) {
+    dependencies <- paste(dependencies, hospitalization_target_name(nsimulation, scenario, deathrate))
+    command <- paste(command, scenario)
+  }
+  
+  return(paste0(target_name,": ", dependencies, "\n",
+                "\t", command))
+}
+
+quant_summ_geoid_target_name <- function(deathrate) {
+  return(paste0("quantile_summary/geoid_summary_",deathrate,".csv"))
+}
+
+quant_summ_geoid_make_command <- function(deathrate, nsimulation, scenarios) {
+  target_name <- quant_summ_geoid_target_name(deathrate)
+  dependencies <- ""
+  command <- "mkdir -p quantile_summary\n"
+  command <- paste0(command,'\t$(RSCRIPT) $(PIPELINE)/scripts/QuantileSummarizeGeoidLevel.R -c $(CONFIG) -j $(NCOREPER)')
+  command <- paste(command, "-n", nsimulation, 
+                            "-d", deathrate,
+                            "-o $@")
+  for (scenario in scenarios) {
+    dependencies <- paste(dependencies, hospitalization_target_name(nsimulation, scenario, deathrate))
+    command <- paste(command, scenario)
+  }
+  
+  return(paste0(target_name,": ", dependencies, "\n",
+                "\t", command))
+}
+
+quant_summ_state_target_name <- function(deathrate) {
+  return(paste0("quantile_summary/state_summary_",deathrate,".csv"))
+}
+
+quant_summ_state_make_command <- function(deathrate, nsimulation, scenarios) {
+  target_name <- quant_summ_state_target_name(deathrate)
+  dependencies <- ""
+  command <- "mkdir -p quantile_summary\n"
+  command <- paste0(command,'\t$(RSCRIPT) $(PIPELINE)/scripts/QuantileSummarizeStateLevel.R -c $(CONFIG) -j $(NCOREPER)')
+  command <- paste(command, "-n", nsimulation, 
+                            "-d", deathrate,
+                            "-o $@")
+  for (scenario in scenarios) {
+    dependencies <- paste(dependencies, hospitalization_target_name(nsimulation, scenario, deathrate))
+    command <- paste(command, scenario)
+  }
+  
+  return(paste0(target_name,": ", dependencies, "\n",
+                "\t", command))
 }
 
 sink("Makefile")
@@ -169,8 +236,17 @@ for(scenario in scenarios)
 
 if(generating_report)
 {
-  # final target dependency for .html is the Rmd
-  cat(sprintf(" %s\n", rmd_file))
+  # target dependency for .html is the Rmd
+  cat(sprintf(" %s", rmd_file))
+  for(deathrate in deathrates)
+  {
+    cat(" ")
+    cat(paste(quant_summ_geo_extent_target_name(deathrate),
+              quant_summ_geoid_target_name(deathrate),
+              quant_summ_state_target_name(deathrate)))
+  }
+
+  cat("\n")
 
   renderCmd = sprintf("\t$(RSCRIPT) -e 'rmarkdown::render(\"%s\"", rmd_file)
   renderCmd = paste0(renderCmd, sprintf(", params=list(state_usps=\"%s\"", config$report$state_usps))
@@ -188,14 +264,26 @@ if(generating_report)
 \t$(RSCRIPT) -e 'rmarkdown::draft(\"$@\",template=\"state_report\",package=\"report.generation\",edit=FALSE)'", 
 rmd_file, report_name)
   cat(rmd_target)
+  for(deathrate in deathrates) {
+    cat("\n")
+    cat(quant_summ_geo_extent_make_command(deathrate, simulations, scenarios))
+    cat("\n")
+    cat(quant_summ_geoid_make_command(deathrate, simulations, scenarios))
+    cat("\n")
+    cat(quant_summ_state_make_command(deathrate, simulations, scenarios))
+  }
 }
 cat("\n")
 
+
 if(using_importation){
   for(sim_idx in seq_len(length(simulations))){
-    
-    cat(filter_make_command(simulations[sim_idx]))
     cat(importation_make_command(simulations[sim_idx]))
+  }
+}
+if(using_static_filter){
+  for(sim_idx in seq_len(length(simulations))){
+    cat(filter_make_command(simulations[sim_idx]))
   }
 }
 
@@ -212,37 +300,43 @@ for(sim_idx in seq_len(length(simulations))){
 
 cat("
 .files/directory_exists:
-\tmkdir .files
+\tmkdir -p .files
 \ttouch .files/directory_exists
 ")
 
 
 cat(paste0("
 
-rerun: rerun_simulations rerun_hospitalization"
+rerun: rerun_simulations rerun_hospitalization\n"
 ))
 
-if(using_importation){
-  cat(paste0("rerun_importation rerun_filter
-clean_filter: rerun_filter
+if(using_static_filter){
+  cat(paste0("clean_filter: rerun_filter
 \trm -rf ",config$dynfilter_path,"
+rerun_filter:
+\trm -f .files/*_filter
+"))
+}
+if(using_importation){
+  cat(paste0("
 clean_importation: rerun_importation
 \trm -rf data/case_data
 \trm -rf importation
+rerun_importation:
+\trm -f .files/*_importation
 "))
 }
 cat(paste0("
-rerun_filter:
-\trm -f .files/1*_filter
-rerun_importation:
-\trm -f .files/1*_importation
 rerun_simulations: clean_simulations
-\trm -f .files/1*_simulation*
+\trm -f .files/*_simulation*
 rerun_hospitalization:
-\trm -f .files/1*_hospitalization*
+\trm -f .files/*_hospitalization*
 clean: clean_simulations clean_hospitalization"))
 if(using_importation){
-  cat(" clean_importation clean_filter")
+  cat(" clean_importation")
+}
+if(using_static_filter){
+  cat(" clean_filter")
 }
 if(generating_report)
 {
