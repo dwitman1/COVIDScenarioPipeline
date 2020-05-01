@@ -66,16 +66,16 @@ q <- function(col) {
   tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
-res_split <- split(res_geoid, res_geoid$geoid)
-to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table", .inorder=FALSE, .multicombine=TRUE, .verbose=TRUE) %dopar% {
-  stopifnot(is.data.table(by_geoid))
-  by_geoid[, .(quantile=scales::percent(PROBS),
-               hosp_curr=q(hosp_curr),
-               cum_death=q(cum_death),
-               death=q(death),
-               infections=q(infections),
-               cum_infections=q(cum_infections),
-               hosp=q(hosp)), by=list(time, geoid)]
+res_split <- split(res_geoid, res_geoid$time)
+to_save_geo <- foreach(r_split=res_split, .combine=rbind, .packages="data.table", .inorder=FALSE, .multicombine=TRUE, .verbose=TRUE) %dopar% {
+  stopifnot(is.data.table(r_split))
+  r_split[, .(quantile=scales::percent(PROBS),
+              hosp_curr=q(hosp_curr),
+              cum_death=q(cum_death),
+              death=q(death),
+              infections=q(infections),
+              cum_infections=q(cum_infections),
+              hosp=q(hosp)), by=list(time, geoid)]
 }
 data.table::fwrite(to_save_geo, file=opt$outfile)
 
