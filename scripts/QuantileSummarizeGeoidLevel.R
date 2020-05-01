@@ -10,13 +10,14 @@ suppressMessages({
     library(tidyverse, quietly=TRUE)
     library(tdigest)
     library(scales)
+    library(parallel)
 })
 
 ##List of specified options
 option_list <- list(
     make_option("--name_filter", type="character", default="", help="filename filter, usually deaths"),
     make_option("--nfiles", type="numeric", default=NA, help="number of files to load, default is all"),
-    make_option("--ncores", type="numeric", default=6, help="number of cores to use in data load, default =6"),
+    make_option("--ncores", type="numeric", default=detectCores(), help="number of cores to use in data load, default =6"),
     make_option(c("--outfile","-o"), type="character", default=NULL, help="file to saver output"),
     make_option("--start_date", type="character", default="2020-01-01", help="earliest date to include"),
     make_option("--end_date",  type="character", default="2022-01-01", help="latest date to include")
