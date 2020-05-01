@@ -36,8 +36,9 @@ if (is.null(opt$outfile)) {
     stop("outfile must be specified")
 }
 
-cl = makeCluster(opt$ncores)
+cl = makeCluster(opt$ncores, outfile="")
 doParallel::registerDoParallel(cl)
+registerDoSNOW(cl)
 suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 
 opt$start_date <- as.Date(opt$start_date)
@@ -71,8 +72,9 @@ q <- function(col) {
 res_split <- split(res_geoid, list(res_geoid$geoid, week(res_geoid$time)))
 pb <- txtProgressBar(max=length(res_split), style=3)
 progress <- function(n) setTxtProgressBar(pb, n)
+opts <- list(progress=progress)
 
-to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table", .options.snow=list(progress=progress)) %dopar% {
+to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table", .options.snow=opts) %dopar% {
   stopifnot(is.data.table(by_geoid))
   by_geoid[, .(quantile=scales::percent(PROBS),
                hosp_curr=q(hosp_curr),
