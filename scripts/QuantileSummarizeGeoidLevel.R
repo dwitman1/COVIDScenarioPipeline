@@ -28,7 +28,7 @@ option_list <- list(
 
 opt_parser <- OptionParser(option_list = option_list, usage="%prog [options] [one or more scenarios]")
 
-arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf)) #args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
+arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf), args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
 opt <- arguments$options
 scenarios <- arguments$args
 
@@ -36,7 +36,8 @@ if (is.null(opt$outfile)) {
     stop("outfile must be specified")
 }
 
-doParallel::registerDoParallel(opt$ncores)
+cl = makeCluster(opt$ncores)
+doParallel::registerDoParallel(cl)
 suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 
 opt$start_date <- as.Date(opt$start_date)
@@ -66,13 +67,13 @@ q <- function(col) {
   tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
-to_save_geo <- foreach(by_geoid=split(res_geoid, res_geoid$geoid), .combine=rbind) %dopar%
+res_split <- split(res_geoid, res_geoid$geoid)
+to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table") %dopar% {
+  stopifnot(is.data.table(by_geoid))
   by_geoid[, .(quantile=scales::percent(PROBS),
-                hosp_curr=q(hosp_curr),
-                cum_death=q(cum_death),
-                death=q(death),
-                infections=q(infections),
-                cum_infections=q(cum_infections),
-                hosp=q(hosp)), by=list(time, geoid)]
+                hosp_curr=q(hosp_curr)), by=list(time, geoid)]
+}
 
 data.table::fwrite(to_save_geo, file=opt$outfile)
+
+stopCluster(cl)
