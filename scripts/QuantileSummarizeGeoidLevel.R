@@ -58,7 +58,7 @@ res_geoid <- dplyr::bind_rows(purrr::pmap(data.frame(scenario=scenarios), functi
 }))
 
 q <- function(col) {
-  try(tquantile(tdigest(col), PROBS), silent=TRUE)
+  tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
 to_save_geo <- res_geoid %>%
