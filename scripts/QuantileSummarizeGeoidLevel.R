@@ -35,7 +35,7 @@ if (is.null(opt$outfile)) {
     stop("outfile must be specified")
 }
 
-cl = makeForkCluster(opt$ncores, outfile="")
+cl = makeCluster(opt$ncores, outfile="")
 doParallel::registerDoParallel(cl)
 suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 
