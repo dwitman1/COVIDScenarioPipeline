@@ -1,7 +1,8 @@
 
-# library(devtools)
-# devtools::install_github("hadley/dplyr")
+# XXX: this branch was in a transitory state before packrat, so these packages need to be installed to run this script:
 # install.packages("tdigest")
+#
+# TODO: update dependencies
 
 PROBS = c(0.01, 0.025, seq(0.05, 0.95, by = 0.05), 0.975, 0.99)
 
@@ -11,6 +12,7 @@ suppressMessages({
     library(tdigest)
     library(scales)
     library(parallel)
+    library(data.table)
 })
 
 ##List of specified options
@@ -25,7 +27,7 @@ option_list <- list(
 
 opt_parser <- OptionParser(option_list = option_list, usage="%prog [options] [one or more scenarios]")
 
-arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf))
+arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf), args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
 opt <- arguments$options
 scenarios <- arguments$args
 
@@ -34,6 +36,7 @@ if (is.null(opt$outfile)) {
 }
 
 doParallel::registerDoParallel(opt$ncores)
+setDTthreads(opt$ncores)
 suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 
 opt$start_date <- as.Date(opt$start_date)
@@ -49,7 +52,7 @@ post_proc <- function(x, geodata, opt) {
         rename(infections=incidI, death=incidD, hosp=incidH)
 }
 
-res_geoid <- dplyr::bind_rows(purrr::pmap(data.frame(scenario=scenarios), function(scenario) { 
+res_geoid <- data.table::rbindlist(purrr::pmap(data.frame(scenario=scenarios), function(scenario) { 
     report.generation::load_hosp_sims_filtered(scenario,
                                                name_filter=opt$name_filter,
                                                num_files=opt$nfiles,
@@ -59,18 +62,16 @@ res_geoid <- dplyr::bind_rows(purrr::pmap(data.frame(scenario=scenarios), functi
 }))
 
 q <- function(col) {
+  # if col is empty, tquantile fails; in that case, return what quantile() would (all 0's)
   tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
-to_save_geo <- res_geoid %>%
-    group_by(time, geoid) %>%
-    summarise(
-        quantile=scales::percent(PROBS),
-        hosp_curr=q(hosp_curr),
-        cum_death=q(cum_death),
-        death=q(death),
-        infections=q(infections),
-        cum_infections=q(cum_infections),
-        hosp=q(hosp))
+to_save_geo <- res_geoid[, .(quantile=scales::percent(PROBS),
+                             hosp_curr=q(hosp_curr),
+                             cum_death=q(cum_death),
+                             death=q(death),
+                             infections=q(infections),
+                             cum_infections=q(cum_infections),
+                             hosp=q(hosp)), by=list(time, geoid)]
 
-write_csv(to_save_geo, path=opt$outfile)
+data.table::fwrite(to_save_geo, file=opt$outfile)
