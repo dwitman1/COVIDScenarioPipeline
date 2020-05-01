@@ -14,6 +14,7 @@ suppressMessages({
     library(parallel)
     library(doParallel)
     library(data.table)
+    library(doSNOW)
 })
 
 option_list <- list(
@@ -27,7 +28,7 @@ option_list <- list(
 
 opt_parser <- OptionParser(option_list = option_list, usage="%prog [options] [one or more scenarios]")
 
-arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf))#, args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
+arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf)) #, args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
 opt <- arguments$options
 scenarios <- arguments$args
 
@@ -66,8 +67,12 @@ q <- function(col) {
   tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
+
 res_split <- split(res_geoid, list(res_geoid$geoid, week(res_geoid$time)))
-to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table") %dopar% {
+pb <- txtProgressBar(max=length(res_split), style=3)
+progress <- function(n) setTxtProgressBar(pb, n)
+
+to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table", .options.snow=list(progress=progress)) %dopar% {
   stopifnot(is.data.table(by_geoid))
   by_geoid[, .(quantile=scales::percent(PROBS),
                hosp_curr=q(hosp_curr),
@@ -77,7 +82,6 @@ to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table
                cum_infections=q(cum_infections),
                hosp=q(hosp)), by=list(time, geoid)]
 }
-
 data.table::fwrite(to_save_geo, file=opt$outfile)
 
 stopCluster(cl)
