@@ -16,7 +16,6 @@ suppressMessages({
     library(data.table)
 })
 
-##List of specified options
 option_list <- list(
     make_option("--name_filter", type="character", default="", help="filename filter, usually deaths"),
     make_option("--nfiles", type="numeric", default=NA, help="number of files to load, default is all"),
@@ -67,7 +66,7 @@ q <- function(col) {
   tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
-res_split <- split(res_geoid, res_geoid$geoid)
+res_split <- split(res_geoid, list(res_geoid$geoid, week(res_geoid$time)))
 to_save_geo <- foreach(by_geoid=res_split, .combine=rbind, .packages="data.table") %dopar% {
   stopifnot(is.data.table(by_geoid))
   by_geoid[, .(quantile=scales::percent(PROBS),
