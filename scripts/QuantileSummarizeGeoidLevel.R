@@ -12,6 +12,7 @@ suppressMessages({
     library(tdigest)
     library(scales)
     library(parallel)
+    library(doParallel)
     library(data.table)
 })
 
@@ -19,7 +20,7 @@ suppressMessages({
 option_list <- list(
     make_option("--name_filter", type="character", default="", help="filename filter, usually deaths"),
     make_option("--nfiles", type="numeric", default=NA, help="number of files to load, default is all"),
-    make_option("--ncores", type="numeric", default=detectCores(), help="number of cores to use in data load, default =6"),
+    make_option("--ncores", type="numeric", default=parallel::detectCores(), help="number of cores to use in data load, default =6"),
     make_option(c("--outfile","-o"), type="character", default=NULL, help="file to saver output"),
     make_option("--start_date", type="character", default="2020-01-01", help="earliest date to include"),
     make_option("--end_date",  type="character", default="2022-01-01", help="latest date to include")
@@ -36,7 +37,6 @@ if (is.null(opt$outfile)) {
 }
 
 doParallel::registerDoParallel(opt$ncores)
-setDTthreads(opt$ncores)
 suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 
 opt$start_date <- as.Date(opt$start_date)
@@ -66,8 +66,7 @@ q <- function(col) {
   tryCatch(tquantile(tdigest(col), PROBS), error = function(e) { quantile(col, PROBS) })
 }
 
-by_geoid <- split(res_geoid, res_geoid$geoid)
-to_save_geo <- foreach(i=data, .combine=rbind) %dopar%
+to_save_geo <- foreach(by_geoid=split(res_geoid, res_geoid$geoid), .combine=rbind) %dopar%
   by_geoid[, .(quantile=scales::percent(PROBS),
                 hosp_curr=q(hosp_curr),
                 cum_death=q(cum_death),
