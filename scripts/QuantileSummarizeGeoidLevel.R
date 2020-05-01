@@ -28,7 +28,7 @@ option_list <- list(
 
 opt_parser <- OptionParser(option_list = option_list, usage="%prog [options] [one or more scenarios]")
 
-arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf), args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
+arguments <- parse_args(opt_parser, positional_arguments=c(1,Inf))#, args=c("mid-west-coast-AZ-NV_UKFixed_30_40", "--nfiles=1", "--outfile=test.out"))
 opt <- arguments$options
 scenarios <- arguments$args
 
