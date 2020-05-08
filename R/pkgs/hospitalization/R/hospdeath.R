@@ -128,6 +128,7 @@ hosp_create_delay_frame <- function(X, p_X, data_, X_pars, varname) {
       count = X_
     )
     names(rc)[3] <- paste0("incid",varname)
+    data.table::setkey(rc, uid, time)
     return(rc)
 }
 
@@ -411,7 +412,7 @@ build_hospdeath_geoid_fixedIFR_par <- function(
     stopifnot(is.data.table(dat_I) && is.data.table(dat_H) && is.data.table(data_ICU) && is.data.table(data_Vent) && is.data.table(data_D))
 
     # Using `merge` instead of full_join for performance reasons
-    res <- Reduce(function(x, y, ...) merge(x, y, all = TRUE, ...),
+    res <- Reduce(function(x, y, ...) merge(x, y, by=c("uid", "time"), all = TRUE, ...),
                   list(dat_I, dat_H, data_ICU, data_Vent, data_D)) %>%
       replace_na(
         list(incidI = 0,
