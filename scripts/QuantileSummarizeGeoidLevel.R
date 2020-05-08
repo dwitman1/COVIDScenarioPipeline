@@ -41,14 +41,15 @@ if (is.null(opt$outfile)) {
 cl = makeCluster(opt$jobs, outfile="")
 doParallel::registerDoParallel(cl)
 
+
 config <- covidcommon::load_config(opt$c)
 if (length(config) == 0) {
-  stop("no configuration found -- please set CONFIG_PATH environment variable or use the -c command flag")
+  warning("no configuration found -- please set CONFIG_PATH environment variable or use the -c command flag")
 }
 
 ##Load the geodata file
-suppressMessages(geodata <- readr::read_csv(paste0(config$spatial_setup$base_path,"/",config$spatial_setup$geodata)))
-
+#suppressMessages(geodata <- readr::read_csv(paste0(config$spatial_setup$base_path,"/",config$spatial_setup$geodata)))
+suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 
 ##Convert times to date objects
 if (is.null(opt$start_date)) {
@@ -71,8 +72,8 @@ post_proc <- function(x, geodata, opt) {
         rename(infections=incidI, death=incidD, hosp=incidH)
 }
 
-setup_name <- config$spatial_setup$setup_name
-scenarios <- scenarios %>% lapply(function(x) { paste0(setup_name,"_",x)}) %>% unlist()
+#setup_name <- config$spatial_setup$setup_name
+#scenarios <- scenarios %>% lapply(function(x) { paste0(setup_name,"_",x)}) %>% unlist()
 res_geoid <- data.table::rbindlist(purrr::pmap(data.frame(scenario=scenarios), function(scenario) { 
     report.generation::load_hosp_sims_filtered(scenario,
                                                name_filter=opt$name_filter,
@@ -98,6 +99,8 @@ to_save_geo <- foreach(r_split=res_split, .combine=rbind, .packages="data.table"
               cum_infections=q(cum_infections),
               hosp=q(hosp)), by=list(time, geoid)]
 }
+
 data.table::fwrite(to_save_geo, file=opt$outfile)
+
 
 stopCluster(cl)

@@ -30,15 +30,17 @@ if(is.null(opt$outfile)) {
 
 config <- covidcommon::load_config(opt$c)
 if (length(config) == 0) {
-  stop("no configuration found -- please set CONFIG_PATH environment variable or use the -c command flag")
+  warning("no configuration found -- please set CONFIG_PATH environment variable or use the -c command flag")
 }
 
 ##Load the geodata file
-suppressMessages(geodata <- readr::read_csv(paste0(config$spatial_setup$base_path,"/",config$spatial_setup$geodata)))
+                                        #suppressMessages(geodata <- readr::read_csv(paste0(config$spatial_setup$base_path,"/",config$spatial_setup$geodata)))
+suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
 geodata <- geodata %>% mutate(geoid=as.character(geoid))
 
 ## Register the parallel backend
-doParallel::registerDoParallel(opt$jobs)
+cl <- parallel::makeCluster(opt$jobs)
+doParallel::registerDoParallel(cl)
 
 
 ##Convert times to date objects
@@ -77,9 +79,9 @@ post_proc <- function(x,geodata,opt) {
 ##Run over scenarios and death rates as appropriate. Note that
 ##Final results will average accross whatever is included
 res_state <-list()
-setup_name <- config$spatial_setup$setup_name
+#setup_name <- config$spatial_setup$setup_name
 for (i in 1:length(scenarios)) {
-    scenario_dir = paste0(setup_name,"_",scenarios[i])
+    scenario_dir = scenarios[i]# paste0(setup_name,"_",scenarios[i])
     res_state[[i]] <- report.generation::load_hosp_sims_filtered(scenario_dir,
                                                                  name_filter = opt$name_filter,
                                                                  num_files = opt$num_simulations,
@@ -95,7 +97,8 @@ for (i in 1:length(scenarios)) {
 res_state<-dplyr::bind_rows(res_state)
 
 ##deregister backend
-doParallel::stopImplicitCluster()
+parallel::stopCluster(cl)
+
 
 
 ## Extract quantiles

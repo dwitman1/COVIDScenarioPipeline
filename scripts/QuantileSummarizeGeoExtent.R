@@ -29,12 +29,14 @@ if(is.null(opts$outfile)) {
 
 config <- covidcommon::load_config(opts$c)
 if (length(config) == 0) {
-  stop("no configuration found -- please set CONFIG_PATH environment variable or use the -c command flag")
+  warning("no configuration found -- please set CONFIG_PATH environment variable or use the -c command flag")
 }
 
 
 ## Register the parallel backend
-doParallel::registerDoParallel(opts$j)
+cl <- parallel::makeCluster(opts$jobs)
+doParallel::registerDoParallel(cl)
+
 
 
 ##Convert times to date objects
@@ -71,9 +73,9 @@ post_proc <- function(x, opts) {
 ##Run over scenarios and death rates as appropriate. Note that
 ##Final results will average accross whatever is included
 res_all <-list()
-setup_name <- config$spatial_setup$setup_name
+#setup_name <- config$spatial_setup$setup_name
 for (i in 1:length(scenarios)) {
-    scenario_dir = paste0(setup_name,"_",scenarios[i])
+    scenario_dir = scenarios[i]#paste0(setup_name,"_",scenarios[i])
     res_all[[i]] <- report.generation::load_hosp_sims_filtered(scenario_dir,
                                                                  name_filter = opts$name_filter,
                                                                  num_files = opts$num_simulations,
@@ -88,7 +90,8 @@ for (i in 1:length(scenarios)) {
 res_all<-dplyr::bind_rows(res_all)
 
 ##deregister backend
-doParallel::stopImplicitCluster()
+parallel::stopCluster(cl)
+
 
 
 ## Extract quantiles
