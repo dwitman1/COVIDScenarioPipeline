@@ -81,7 +81,7 @@ echo "==="
 # dvc repro $DVC_TARGET
 
 # NOTE(jwills): hard coding this for now
-Rscript COVIDScenarioPipeline/R/scripts/full_filter.R -p COVIDScenarioPipeline -n 1 -k 10 -j 1
+Rscript COVIDScenarioPipeline/R/scripts/full_filter.R -p COVIDScenarioPipeline -n 1 -k 25 -j 1
 
 dvc_ret=$?
 if [ $dvc_ret -ne 0 ]; then
