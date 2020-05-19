@@ -14,7 +14,9 @@ option_list <- list(
     make_option(c("-d", "--name_filter"), type="character", default="", help="filename filter, usually deaths"),
     make_option(c("-o","--outfile"), type="character", default=NULL, help="file to save output"),
     make_option("--start_date", type="character", default=NULL, help="earliest date to include"),
-    make_option("--end_date",  type="character", default=NULL, help="latest date to include")
+    make_option("--end_date",  type="character", default=NULL, help="latest date to include"),
+    make_option(c("--geodata"), type="character", default="data/geodata.csv", help="location of geodata"),
+    make_option(c("--week","-w"), action="store_true", default=FALSE, help="Aggregate to epi week")
 )
 
 opt_parser <- OptionParser(option_list = option_list, usage="%prog [options] [one or more scenarios]")
@@ -35,7 +37,8 @@ if (length(config) == 0) {
 
 ##Load the geodata file
                                         #suppressMessages(geodata <- readr::read_csv(paste0(config$spatial_setup$base_path,"/",config$spatial_setup$geodata)))
-suppressMessages(geodata <- readr::read_csv("data/geodata.csv"))
+##TODO: Should read from config if available
+suppressMessages(geodata <- readr::read_csv(opt$geodata))
 geodata <- geodata %>% mutate(geoid=as.character(geoid))
 
 ## Register the parallel backend
@@ -56,24 +59,56 @@ opt$end_date <- as.Date(opt$end_date)
 
 
 ##Per file filtering code
-post_proc <- function(x,geodata,opt) {
+if (!opt$week) {
+    post_proc <- function(x,geodata,opt) {
 
 
-  x%>%
-    group_by(geoid) %>%
-      mutate(cum_infections=cumsum(incidI)) %>%
-      mutate(cum_death=cumsum(incidD)) %>%
-      ungroup()%>%
-      filter(time>=opt$start_date& time<=opt$end_date) %>%
-      inner_join(geodata%>%select(geoid, USPS)) %>%
-      group_by(USPS, time) %>%
-      summarize(hosp_curr=sum(hosp_curr),
-                cum_death=sum(cum_death),
-                death=sum(incidD),
-                hosp=sum(incidH),
-                infections=sum(incidI),
-                cum_infections=sum(cum_infections)) %>%
-      ungroup()
+        x%>%
+            group_by(geoid) %>%
+            mutate(cum_infections=cumsum(incidI)) %>%
+            mutate(cum_death=cumsum(incidD)) %>%
+            ungroup()%>%
+            filter(time>=opt$start_date& time<=opt$end_date) %>%
+            inner_join(geodata%>%select(geoid, USPS)) %>%
+            group_by(USPS, time) %>%
+            summarize(hosp_curr=sum(hosp_curr),
+                      cum_death=sum(cum_death),
+                      death=sum(incidD),
+                      hosp=sum(incidH),
+                      infections=sum(incidI),
+                      cum_infections=sum(cum_infections)) %>%
+            ungroup()
+    }
+} else {
+    post_proc <- function(x,geodata,opt) {
+
+
+        x%>%
+            group_by(geoid) %>%
+            mutate(cum_infections=cumsum(incidI)) %>%
+            mutate(cum_death=cumsum(incidD)) %>%
+            ungroup()%>%
+            filter(time>=opt$start_date& time<=opt$end_date) %>%
+            inner_join(geodata%>%select(geoid, USPS)) %>%
+            group_by(USPS, time) %>%
+            summarize(hosp_curr=sum(hosp_curr),
+                      cum_death=sum(cum_death),
+                      death=sum(incidD),
+                      hosp=sum(incidH),
+                      infections=sum(incidI),
+                      cum_infections=sum(cum_infections)) %>%
+            ungroup()%>%
+            mutate(week=lubridate::epiweek(time))%>%
+            group_by(USPS, week)%>%
+            summarize(hosp_curr=mean(hosp_curr),
+                      cum_death=max(cum_death),
+                      hosp=sum(hosp),
+                      death=sum(death),
+                      infections=sum(infections),
+                      cum_infections=max(cum_infections),
+                      time = max(time))%>%
+            ungroup()
+    }    
 }
 
 ##Run over scenarios and death rates as appropriate. Note that
@@ -105,8 +140,9 @@ parallel::stopCluster(cl)
 tmp_col <- function(x, col) {
     x%>%
         group_by(time,USPS) %>%
-        summarize(x=list(enframe(quantile(!!sym(col), probs=c(0.01, 0.025,
-                                                              seq(0.05, 0.95, by = 0.05), 0.975, 0.99)),
+        summarize(x=list(enframe(c(quantile(!!sym(col), probs=c(0.01, 0.025,
+                                                                seq(0.05, 0.95, by = 0.05), 0.975, 0.99)),
+                                   mean(!!sym(col))),
                                  "quantile",col))) %>%
         unnest(x)
 

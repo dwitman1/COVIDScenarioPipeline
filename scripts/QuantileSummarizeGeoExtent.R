@@ -14,7 +14,8 @@ option_list <- list(
     make_option(c("-d", "--name_filter"), type="character", default="", help="filename filter, usually deaths"),
     make_option(c("-o","--outfile"), type="character", default=NULL, help="file to save output"),
     make_option("--start_date", type="character", default=NULL, help="earliest date to include"),
-    make_option("--end_date",  type="character", default=NULL, help="latest date to include")
+    make_option("--end_date",  type="character", default=NULL, help="latest date to include"),
+    make_option(c("--week","-w"), action="store_true", default=FALSE, help="Aggregate to epi week")
 )
 
 opt_parser <- OptionParser(option_list = option_list, usage="%prog [options] [one or more scenarios]")
@@ -51,23 +52,57 @@ if (is.null(opts$end_date)) {
 opts$end_date <- as.Date(opts$end_date)
 
 ##Per file filtering code
-post_proc <- function(x, opts) {
+if (!opts$week) {
+    post_proc <- function(x, opts) {
 
 
-  x%>%
-    group_by(geoid) %>%
-      mutate(cum_infections=cumsum(incidI)) %>%
-      mutate(cum_death=cumsum(incidD)) %>%
-      ungroup()%>%
-      filter(time>=opts$start_date & time<=opts$end_date) %>%
-      group_by(time) %>%
-      summarize(hosp_curr=sum(hosp_curr),
-                cum_death=sum(cum_death),
-                hosp=sum(incidH),
-                death=sum(incidD),
-                infections=sum(incidI),
-                cum_infections=sum(cum_infections)) %>%
-      ungroup()
+        x%>%
+            group_by(geoid) %>%
+            mutate(cum_infections=cumsum(incidI)) %>%
+            mutate(cum_death=cumsum(incidD)) %>%
+            ungroup()%>%
+            filter(time>=opts$start_date & time<=opts$end_date) %>%
+            group_by(time) %>%
+            summarize(hosp_curr=sum(hosp_curr),
+                      cum_death=sum(cum_death),
+                      hosp=sum(incidH),
+                      death=sum(incidD),
+                      infections=sum(incidI),
+                      cum_infections=sum(cum_infections)) %>%
+            ungroup()
+    }
+} else {
+     post_proc <- function(x, opts) {
+
+
+        x%>%
+            group_by(geoid) %>%
+            mutate(cum_infections=cumsum(incidI)) %>%
+            mutate(cum_death=cumsum(incidD)) %>%
+            ungroup()%>%
+            filter(time>=opts$start_date & time<=opts$end_date) %>%
+            group_by(time) %>%
+            summarize(hosp_curr=sum(hosp_curr),
+                      cum_death=sum(cum_death),
+                      hosp=sum(incidH),
+                      death=sum(incidD),
+                      infections=sum(incidI),
+                      cum_infections=sum(cum_infections)) %>%
+            ungroup()%>%
+            mutate(week=lubridate::epiweek(time))%>%
+            group_by(week)%>%
+            summarize(hosp_curr=mean(hosp_curr),
+                      cum_death=max(cum_death),
+                      hosp=sum(hosp),
+                      death=sum(death),
+                      infections=sum(infections),
+                      cum_infections=max(cum_infections),
+                      time = max(time))%>%
+            ungroup()
+                      
+                      
+    }
+    
 }
 
 ##Run over scenarios and death rates as appropriate. Note that
@@ -98,8 +133,9 @@ parallel::stopCluster(cl)
 tmp_col <- function(x, col) {
     x%>%
         group_by(time) %>%
-        summarize(x=list(enframe(quantile(!!sym(col), probs=c(0.01, 0.025,
-                                                              seq(0.05, 0.95, by = 0.05), 0.975, 0.99)),
+        summarize(x=list(enframe(c(quantile(!!sym(col), probs=c(0.01, 0.025,
+                                                                seq(0.05, 0.95, by = 0.05), 0.975, 0.99)),
+                                   mean=mean(!!sym(col))),
                                  "quantile",col))) %>%
         unnest(x)
 
