@@ -102,5 +102,4 @@ to_save_geo <- foreach(r_split=res_split, .combine=rbind, .packages="data.table"
 
 data.table::fwrite(to_save_geo, file=opt$outfile)
 
-
 stopCluster(cl)

@@ -39,7 +39,6 @@ cl <- parallel::makeCluster(opts$jobs)
 doParallel::registerDoParallel(cl)
 
 
-
 ##Convert times to date objects
 if (is.null(opts$start_date)) {
   opts$start_date <- as.Date(config$start_date)
