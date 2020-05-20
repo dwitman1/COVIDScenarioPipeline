@@ -83,13 +83,13 @@ build_US_setup_make_command <- function() {
   return(cmd)
 }
 
-filter_target_name <- function(simulation, prefix = "" ){
-  paste0(".files/",prefix,simulation,"_filter")
+filter_target_name <- function(simulation){
+  paste0(".files/",simulation,"_filter")
 }
 
-filter_make_command <- function(simulation,prefix=""){
-  target_name <- filter_target_name(simulation,prefix)
-  dependency_name <- importation_target_name(simulation, prefix=prefix)
+filter_make_command <- function(simulation){
+  target_name <- filter_target_name(simulation)
+  dependency_name <- importation_target_name(simulation)
   if(building_US_setup) {
     dependency_name <- paste(dependency_name, build_US_setup_target_name())
   }
@@ -213,15 +213,23 @@ quant_summ_state_make_command <- function(deathrate, nsimulation, scenarios) {
   
   return(paste0(target_name,": ", dependencies, "\n",
                 "\t", command))
+}
 
 report_html_target_name <- function(report_name) {
   return(sprintf("notebooks/%s/%s_report.html", report_name, report_name))
 }
 
 report_html_make_command <- function(report_name, scenarios, simulations, deathrates, config) {
-  rmd_file = report_rmd_target_name(report_name)
+  rmd_file <- report_rmd_target_name(report_name)
   s <- run_dependencies(scenarios, simulations, deathrates)
-  s <- paste0(s, " ", rmd_file,"\n")
+  s <- paste(s, rmd_file)
+  for(deathrate in deathrates)
+  {
+    s <- paste(s, quant_summ_geo_extent_target_name(deathrate),
+              quant_summ_geoid_target_name(deathrate),
+              quant_summ_state_target_name(deathrate))
+  }
+  s <- paste(s, "\n")
 
   renderCmd = sprintf("\t$(RSCRIPT) -e 'rmarkdown::render(\"%s\"", rmd_file)
   renderCmd = paste0(renderCmd, sprintf(", params=list(state_usps=\"%s\"", config$report$state_usps))
@@ -288,34 +296,6 @@ if(generating_report) {
 
 if(generating_report)
 {
-  # target dependency for .html is the Rmd
-  cat(sprintf(" %s", rmd_file))
-  for(deathrate in deathrates)
-  {
-    cat(" ")
-    cat(paste(quant_summ_geo_extent_target_name(deathrate),
-              quant_summ_geoid_target_name(deathrate),
-              quant_summ_state_target_name(deathrate)))
-  }
-
-  cat("\n")
-
-  renderCmd = sprintf("\t$(RSCRIPT) -e 'rmarkdown::render(\"%s\"", rmd_file)
-  renderCmd = paste0(renderCmd, sprintf(", params=list(state_usps=\"%s\"", config$report$state_usps))
-  if(length(config$report$continue_on_error) != 0)
-  {
-    renderCmd = paste0(renderCmd, 
-                      sprintf(", continue_on_error=%s", config$report$continue_on_error))
-  }
-  renderCmd = paste0(renderCmd, "))'")
-  cat(renderCmd)
-
-  rmd_target = sprintf("
-%s:
-\tmkdir -p notebooks/%s
-\t$(RSCRIPT) -e 'rmarkdown::draft(\"$@\",template=\"state_report\",package=\"report.generation\",edit=FALSE)'", 
-rmd_file, report_name)
-  cat(rmd_target)
   for(deathrate in deathrates) {
     cat("\n")
     cat(quant_summ_geo_extent_make_command(deathrate, simulations, scenarios))
@@ -324,6 +304,7 @@ rmd_file, report_name)
     cat("\n")
     cat(quant_summ_state_make_command(deathrate, simulations, scenarios))
   }
+}
 
 cat("\n")
 
